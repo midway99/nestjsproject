@@ -359,6 +359,10 @@ textarea {
 .category-list {
   display: grid;
   gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
 }
 .category-item,
 .expense-item {
@@ -371,10 +375,21 @@ textarea {
 }
 .category-item > span {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .category-item > small {
+  flex: 0 0 auto;
   color: #7a8580;
   font-size: 0.76rem;
+}
+.category-item > div {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
 }
 .category-item button,
 .expense-item button {

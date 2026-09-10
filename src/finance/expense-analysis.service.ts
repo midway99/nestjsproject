@@ -49,33 +49,17 @@ export class ExpenseAnalysisService {
       const response = await client.chat.completions.create({
         model,
         max_tokens: 700,
-        messages: [
-          {
-            role: 'system',
-            content:
-              'Ты помощник по домашнему бюджету. Проанализируй JSON финансовых операций на русском языке. ' +
-              'Строго различай type=income и type=expense: категории доходов нельзя трактовать как траты или советовать их сократить. ' +
-              'Укажи основные доходы, основные расходы, заметные закономерности, возможные точки экономии только по расходам и 3–5 конкретных рекомендаций. ' +
-              'Если есть historicalContext, сравни текущий снимок с прошлой историей, оцени выполнение прошлых советов, отметь прогресс без лести и покажи тенденцию поведения пользователя. ' +
-              'Подбирай советы под текущую модель трат пользователя, а не давай универсальные рекомендации. ' +
-              'Если данных мало, явно скажи, что выводы предварительные. ' +
-              'Не выдумывай доходы или данные, которых нет. Не давай инвестиционных рекомендаций. ' +
-              'Кратко предупреди, что результат носит информационный характер. ' +
-              'В конце добавь секцию "Советы на следующий период:" со списком конкретных советов.',
-          },
-          {
-            role: 'user',
-            content: JSON.stringify({
-              currentSnapshot: payload,
-              historicalContext,
-            }),
-          },
-        ],
+        temperature: 0.2,
+        messages: this.createAnalysisMessages(payload, historicalContext),
       });
 
-      const analysis = response.choices[0]?.message.content;
+      let analysis = response.choices[0]?.message.content;
       if (!analysis) {
         throw new Error('OpenRouter returned an empty response');
+      }
+      analysis = this.stripReasoningBlocks(analysis);
+      if (this.needsRussianRewrite(analysis)) {
+        analysis = await this.rewriteInRussian(client, model, analysis);
       }
 
       return {
@@ -110,6 +94,86 @@ export class ExpenseAnalysisService {
         'Не удалось получить анализ от ИИ. Попробуйте позже',
       );
     }
+  }
+
+  private createAnalysisMessages(
+    payload: ReturnType<typeof this.createPayload>,
+    historicalContext: ReturnType<typeof this.createHistoricalContext>,
+  ) {
+    return [
+      {
+        role: 'system' as const,
+        content:
+          'Ты русскоязычный финансовый помощник. Отвечай только на русском языке. ' +
+          'Запрещено использовать английские заголовки, английские фразы, markdown-заголовки на английском и фразы вроде "thinking process". ' +
+          'Запрещено показывать ход рассуждений, внутренний анализ, chain-of-thought, planning, constraints или разбор промпта. ' +
+          'Пользователь должен увидеть только готовый финальный отчет. ' +
+          'Строго различай type=income и type=expense: категории доходов нельзя трактовать как траты или советовать их сократить. ' +
+          'Укажи основные доходы, основные расходы, заметные закономерности, возможные точки экономии только по расходам и 3-5 конкретных рекомендаций. ' +
+          'Если есть historicalContext, сравни текущий снимок с прошлой историей, оцени выполнение прошлых советов, отметь прогресс без лести и покажи тенденцию поведения пользователя. ' +
+          'Подбирай советы под текущую модель трат пользователя, а не давай универсальные рекомендации. ' +
+          'Если данных мало, явно скажи, что выводы предварительные. ' +
+          'Не выдумывай доходы или данные, которых нет. Не давай инвестиционных рекомендаций. ' +
+          'Кратко предупреди, что результат носит информационный характер. ' +
+          'В конце добавь секцию "Советы на следующий период:" со списком конкретных советов.',
+      },
+      {
+        role: 'user' as const,
+        content:
+          'Сформируй только финальный отчет на русском языке по этим данным: ' +
+          JSON.stringify({
+            currentSnapshot: payload,
+            historicalContext,
+          }),
+      },
+    ];
+  }
+
+  private async rewriteInRussian(
+    client: OpenAI,
+    model: string,
+    analysis: string,
+  ) {
+    const response = await client.chat.completions.create({
+      model,
+      max_tokens: 700,
+      temperature: 0,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Перепиши текст только на русском языке. Удали ход рассуждений, planning, thinking process, constraints, markdown-разбор промпта и любые английские фразы. Верни только готовый финальный финансовый отчет для пользователя.',
+        },
+        { role: 'user', content: analysis },
+      ],
+    });
+
+    const rewritten = response.choices[0]?.message.content;
+    return rewritten ? this.stripReasoningBlocks(rewritten) : analysis;
+  }
+
+  private stripReasoningBlocks(value: string) {
+    return value
+      .replace(
+        /here'?s a thinking process:?[\s\S]*?(?=\n\s*(итог|анализ|вывод|советы)|$)/i,
+        '',
+      )
+      .replace(
+        /\*\*(analyze user input|current snapshot|historical context|constraints & requirements|response generation):\*\*/gi,
+        '',
+      )
+      .trim();
+  }
+
+  private needsRussianRewrite(value: string) {
+    const latinWords = value.match(/[A-Za-z]{4,}/g) ?? [];
+    const cyrillicWords = value.match(/[А-Яа-яЁё]{4,}/g) ?? [];
+
+    return (
+      /thinking process|analyze user input|current snapshot|historical context|constraints/i.test(
+        value,
+      ) || latinWords.length > cyrillicWords.length
+    );
   }
 
   async triageUserReport(

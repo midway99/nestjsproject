@@ -24,6 +24,7 @@ const aiAnalysis = ref('');
 const analysisHistory = ref<AnalysisReport[]>([]);
 const showAnalysisModal = ref(false);
 const reportSuccess = ref('');
+const reportError = ref('');
 const form = reactive({
   type: 'expense' as 'expense' | 'income',
   amount: '',
@@ -132,7 +133,8 @@ async function analyzeExpenses() {
 }
 
 async function submitReport() {
-  if (!reportForm.subject.trim() || !reportForm.message.trim()) return;
+  reportError.value = validateReport();
+  if (reportError.value) return;
   reporting.value = true;
   error.value = '';
   reportSuccess.value = '';
@@ -140,12 +142,33 @@ async function submitReport() {
     await financeApi.createReport(reportForm.subject, reportForm.message);
     reportForm.subject = '';
     reportForm.message = '';
+    reportError.value = '';
     reportSuccess.value = 'Репорт отправлен и сохранен для разбора.';
   } catch (requestError) {
     showError(requestError);
   } finally {
     reporting.value = false;
   }
+}
+
+function validateReport() {
+  const subject = reportForm.subject.trim();
+  const message = reportForm.message.trim();
+
+  if (subject.length < 3) {
+    return 'Короткое описание должно быть не короче 3 символов.';
+  }
+  if (subject.length > 120) {
+    return 'Короткое описание должно быть не длиннее 120 символов.';
+  }
+  if (message.length < 10) {
+    return 'Подробное описание должно быть не короче 10 символов.';
+  }
+  if (message.length > 3000) {
+    return 'Подробное описание должно быть не длиннее 3000 символов.';
+  }
+
+  return '';
 }
 
 async function renameCategory(category: Category) {
@@ -334,33 +357,6 @@ onMounted(load);
       </button>
     </section>
 
-    <section class="finance-section report-section">
-      <div>
-        <p class="eyebrow">Обратная связь</p>
-        <h3>Репорт для разработчика</h3>
-      </div>
-      <form class="report-form" @submit.prevent="submitReport">
-        <input
-          v-model.trim="reportForm.subject"
-          maxlength="120"
-          placeholder="Коротко: что не так"
-          required
-        />
-        <textarea
-          v-model.trim="reportForm.message"
-          maxlength="3000"
-          placeholder="Опишите проблему, ожидание и что получилось"
-          required
-        ></textarea>
-        <button class="small-button" type="submit" :disabled="reporting">
-          {{ reporting ? 'Отправляем…' : 'Отправить' }}
-        </button>
-      </form>
-      <p v-if="reportSuccess" class="message success" role="status">
-        {{ reportSuccess }}
-      </p>
-    </section>
-
     <section v-if="analysisHistory.length" class="finance-section history-section">
       <div class="section-heading">
         <div>
@@ -531,6 +527,34 @@ onMounted(load);
         <button @click="editExpense(expense)">✎</button>
         <button @click="removeExpense(expense)">×</button>
       </article>
+    </section>
+
+    <section class="finance-section report-section">
+      <div>
+        <p class="eyebrow">Обратная связь</p>
+        <h3>Репорт для разработчика</h3>
+      </div>
+      <form class="report-form" novalidate @submit.prevent="submitReport">
+        <input
+          v-model.trim="reportForm.subject"
+          maxlength="120"
+          placeholder="Коротко: что не так"
+        />
+        <textarea
+          v-model.trim="reportForm.message"
+          maxlength="3000"
+          placeholder="Опишите проблему, ожидание и что получилось"
+        ></textarea>
+        <button class="small-button" type="submit" :disabled="reporting">
+          {{ reporting ? 'Отправляем…' : 'Отправить' }}
+        </button>
+      </form>
+      <p v-if="reportSuccess" class="message success" role="status">
+        {{ reportSuccess }}
+      </p>
+      <p v-if="reportError" class="message error" role="alert">
+        {{ reportError }}
+      </p>
     </section>
 
     <div
