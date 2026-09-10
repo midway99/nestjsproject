@@ -7,9 +7,7 @@ import { configureSession } from './auth/session.config.js';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  app.useStaticAssets(join(import.meta.dirname, '..', 'frontend', 'dist'), {
-    prefix: '/app',
-  });
+  app.useStaticAssets(join(import.meta.dirname, '..', 'frontend', 'dist'));
   configureSession(app);
   app.useGlobalPipes(
     new ValidationPipe({

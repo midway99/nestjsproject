@@ -28,7 +28,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       SESSION_SECRET: ${SESSION_SECRET:-change-this-session-secret}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-false}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
       OPENROUTER_SITE_URL: ${OPENROUTER_SITE_URL:-http://localhost:3000}
       OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME:-Household Finance}

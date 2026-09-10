@@ -54,6 +54,7 @@ describe('FinanceController (e2e)', () => {
     const expenseResponse = await agent
       .post('/finance/expenses')
       .send({
+        type: 'expense',
         amount: 1250.5,
         description: 'Покупки на неделю',
         spentAt: '2026-09-04',
