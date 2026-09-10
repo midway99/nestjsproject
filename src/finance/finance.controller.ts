@@ -13,6 +13,7 @@ import { CurrentUserId } from '../auth/current-user-id.decorator.js';
 import { SessionAuthGuard } from '../auth/session-auth.guard.js';
 import { CreateCategoryDto } from './dto/create-category.dto.js';
 import { CreateExpenseDto } from './dto/create-expense.dto.js';
+import { CreateUserReportDto } from './dto/create-user-report.dto.js';
 import { UpdateCategoryDto } from './dto/update-category.dto.js';
 import { UpdateExpenseDto } from './dto/update-expense.dto.js';
 import { FinanceService } from './finance.service.js';
@@ -29,7 +30,24 @@ export class FinanceController {
   @Post('analysis')
   async analyzeExpenses(@CurrentUserId() userId: string) {
     const expenses = await this.financeService.getExpensesForAnalysis(userId);
-    return this.expenseAnalysisService.analyze(expenses);
+    const history = await this.financeService.getAnalysisHistory(userId);
+    const result = await this.expenseAnalysisService.analyze(expenses, history);
+    await this.financeService.saveAnalysisReport(userId, result);
+    return result;
+  }
+
+  @Get('analysis/history')
+  getAnalysisHistory(@CurrentUserId() userId: string) {
+    return this.financeService.getAnalysisHistory(userId);
+  }
+
+  @Post('reports')
+  async createReport(
+    @CurrentUserId() userId: string,
+    @Body() dto: CreateUserReportDto,
+  ) {
+    const aiTriage = await this.expenseAnalysisService.triageUserReport(dto);
+    return this.financeService.createUserReport(userId, dto, aiTriage);
   }
 
   @Get('categories')

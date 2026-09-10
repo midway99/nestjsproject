@@ -47,9 +47,14 @@ describe('FinanceController (e2e)', () => {
 
     const categoryResponse = await agent
       .post('/finance/categories')
-      .send({ name: 'Продукты' })
+      .send({ name: 'Продукты', type: 'expense' })
       .expect(201);
     const categoryId = categoryResponse.body.id as string;
+
+    const incomeCategoryResponse = await agent
+      .post('/finance/categories')
+      .send({ name: 'Бонус', type: 'income' })
+      .expect(201);
 
     const expenseResponse = await agent
       .post('/finance/expenses')
@@ -66,8 +71,30 @@ describe('FinanceController (e2e)', () => {
     expect(expenseResponse.body).toMatchObject({
       amount: 1250.5,
       description: 'Покупки на неделю',
-      category: { name: 'Продукты' },
+      category: { name: 'Продукты', type: 'expense' },
     });
+
+    await agent
+      .post('/finance/expenses')
+      .send({
+        type: 'income',
+        amount: 1000,
+        description: 'Ошибочная категория',
+        spentAt: '2026-09-04',
+        categoryId,
+      })
+      .expect(409);
+
+    await agent
+      .post('/finance/expenses')
+      .send({
+        type: 'income',
+        amount: 1000,
+        description: 'Бонус',
+        spentAt: '2026-09-04',
+        categoryId: incomeCategoryResponse.body.id,
+      })
+      .expect(201);
 
     await agent
       .patch(`/finance/expenses/${expenseId}`)
@@ -75,17 +102,11 @@ describe('FinanceController (e2e)', () => {
       .expect(200)
       .expect(({ body }) => expect(body.amount).toBe(1300));
 
-    await agent
-      .delete(`/finance/categories/${categoryId}`)
-      .expect(409);
+    await agent.delete(`/finance/categories/${categoryId}`).expect(409);
 
-    await agent
-      .delete(`/finance/expenses/${expenseId}`)
-      .expect(200);
+    await agent.delete(`/finance/expenses/${expenseId}`).expect(200);
 
-    await agent
-      .delete(`/finance/categories/${categoryId}`)
-      .expect(200);
+    await agent.delete(`/finance/categories/${categoryId}`).expect(200);
   });
 
   it('rejects finance requests without a session', async () => {

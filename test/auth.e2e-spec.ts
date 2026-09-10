@@ -90,7 +90,10 @@ describe('AuthController (e2e)', () => {
       password: 'password123',
     };
 
-    await request(app.getHttpServer()).post('/auth/register').send(user).expect(201);
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(user)
+      .expect(201);
 
     const response = await request(app.getHttpServer())
       .post('/auth/register')
@@ -121,5 +124,40 @@ describe('AuthController (e2e)', () => {
       .expect(401);
 
     expect(response.body.message).toBe('Неверный email или пароль');
+  });
+
+  it('resets a password with a reset token', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        email: 'reset@example.com',
+        name: 'Reset User',
+        password: 'password123',
+      })
+      .expect(201);
+
+    const resetRequest = await request(app.getHttpServer())
+      .post('/auth/password-reset/request')
+      .send({ email: 'reset@example.com' })
+      .expect(200);
+
+    expect(resetRequest.body.resetToken).toEqual(expect.any(String));
+
+    await request(app.getHttpServer())
+      .post('/auth/password-reset/confirm')
+      .send({
+        token: resetRequest.body.resetToken,
+        password: 'new-password123',
+      })
+      .expect(200)
+      .expect(({ body }) => expect(body.passwordReset).toBe(true));
+
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: 'reset@example.com',
+        password: 'new-password123',
+      })
+      .expect(200);
   });
 });

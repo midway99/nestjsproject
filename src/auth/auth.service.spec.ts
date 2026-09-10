@@ -8,8 +8,9 @@ import { UserEntity } from './user.entity.js';
 function createService() {
   const users: UserEntity[] = [];
   const repository = {
-    findOneBy: vi.fn(async ({ email }: { email?: string }) =>
-      users.find((user) => user.email === email) ?? null,
+    findOneBy: vi.fn(
+      async ({ email }: { email?: string }) =>
+        users.find((user) => user.email === email) ?? null,
     ),
     create: vi.fn((data: Partial<UserEntity>) =>
       Object.assign(new UserEntity(), data),
@@ -57,7 +58,9 @@ describe('AuthService', () => {
 
     await service.register(dto);
 
-    await expect(service.register(dto)).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.register(dto)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
   it('rejects an invalid password', async () => {

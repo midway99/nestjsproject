@@ -2,6 +2,7 @@ export interface Category {
   id: string;
   userId: string;
   name: string;
+  type: 'expense' | 'income';
 }
 
 export interface Expense {
@@ -29,7 +30,28 @@ export interface ExpenseAnalysis {
   totalExpenses: number;
   totalIncome: number;
   balance: number;
+  summary: string;
+  recommendations: string[];
+  snapshot: Record<string, unknown>;
+  model: string;
+  periodStart: string | null;
+  periodEnd: string | null;
   generatedAt: string;
+}
+
+export interface AnalysisReport extends ExpenseAnalysis {
+  id: string;
+  userId: string;
+  createdAt: string;
+}
+
+export interface UserReport {
+  id: string;
+  subject: string;
+  message: string;
+  aiTriage: string | null;
+  status: string;
+  createdAt: string;
 }
 
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
@@ -49,11 +71,12 @@ async function api<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const financeApi = {
   analyze: () => api<ExpenseAnalysis>('/finance/analysis', { method: 'POST' }),
+  analysisHistory: () => api<AnalysisReport[]>('/finance/analysis/history'),
   categories: () => api<Category[]>('/finance/categories'),
-  createCategory: (name: string) =>
+  createCategory: (name: string, type: 'expense' | 'income') =>
     api<Category>('/finance/categories', {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, type }),
     }),
   updateCategory: (id: string, name: string) =>
     api<Category>(`/finance/categories/${id}`, {
@@ -78,5 +101,10 @@ export const financeApi = {
   deleteExpense: (id: string) =>
     api<{ deleted: true }>(`/finance/expenses/${id}`, {
       method: 'DELETE',
+    }),
+  createReport: (subject: string, message: string) =>
+    api<UserReport>('/finance/reports', {
+      method: 'POST',
+      body: JSON.stringify({ subject, message }),
     }),
 };

@@ -1,18 +1,24 @@
-export enum DefaultCategory {
-  SALARY = 'Зарплата',
-  FREELANCE = 'Фриланс',
-  BENEFITS = 'Пособия и выплаты',
-  OTHER_INCOME = 'Другие доходы',
-  FOOD = 'Еда',
-  TRANSPORT = 'Транспорт и такси',
-  HOUSING = 'Жильё',
-  UTILITIES = 'Коммунальные услуги',
-  HEALTH = 'Здоровье',
-  SHOPPING = 'Покупки',
-  ENTERTAINMENT = 'Развлечения',
-  EDUCATION = 'Образование',
-  SUBSCRIPTIONS = 'Подписки',
-  TRAVEL = 'Путешествия',
-  GIFTS = 'Подарки',
-  OTHER = 'Прочее',
-}
+import { TransactionType } from './transaction-type.enum.js';
+
+export const defaultCategories: Record<TransactionType, string[]> = {
+  [TransactionType.INCOME]: [
+    'Зарплата',
+    'Фриланс',
+    'Пособия и выплаты',
+    'Подарки',
+    'Другие доходы',
+  ],
+  [TransactionType.EXPENSE]: [
+    'Еда',
+    'Транспорт и такси',
+    'Жильё',
+    'Коммунальные услуги',
+    'Здоровье',
+    'Покупки',
+    'Развлечения',
+    'Образование',
+    'Подписки',
+    'Путешествия',
+    'Прочее',
+  ],
+};

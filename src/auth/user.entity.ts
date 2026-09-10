@@ -23,6 +23,20 @@ export class UserEntity {
   @Column({ name: 'password_hash' })
   passwordHash: string;
 
+  @Column({
+    name: 'password_reset_token_hash',
+    type: 'varchar',
+    nullable: true,
+  })
+  passwordResetTokenHash: string | null;
+
+  @Column({
+    name: 'password_reset_expires_at',
+    type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamp',
+    nullable: true,
+  })
+  passwordResetExpiresAt: Date | null;
+
   @Column({ type: 'varchar', length: 20, default: UserRole.USER })
   role: UserRole;
 

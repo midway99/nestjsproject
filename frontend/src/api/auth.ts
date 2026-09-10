@@ -22,6 +22,11 @@ export interface LoginData {
   password: string;
 }
 
+export interface PasswordResetRequest {
+  message: string;
+  resetToken?: string;
+}
+
 interface ApiErrorBody {
   message?: string | string[];
 }
@@ -60,5 +65,12 @@ export const authApi = {
   },
   updateProfile: (data: UpdateProfileData) =>
     request<User>('/auth/me', data, 'PATCH'),
+  requestPasswordReset: (email: string) =>
+    request<PasswordResetRequest>('/auth/password-reset/request', { email }),
+  resetPassword: (token: string, password: string) =>
+    request<{ passwordReset: true }>('/auth/password-reset/confirm', {
+      token,
+      password,
+    }),
   logout: () => request<{ loggedOut: true }>('/auth/logout', {}),
 };

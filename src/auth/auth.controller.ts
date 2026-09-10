@@ -13,6 +13,8 @@ import type { Request } from 'express';
 import { AuthService } from './auth.service.js';
 import { LoginDto } from './dto/login.dto.js';
 import { RegisterDto } from './dto/register.dto.js';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto.js';
+import { ResetPasswordDto } from './dto/reset-password.dto.js';
 import { UpdateProfileDto } from './dto/update-profile.dto.js';
 import { SessionAuthGuard } from './session-auth.guard.js';
 
@@ -23,6 +25,18 @@ export class AuthController {
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('password-reset/request')
+  requestPasswordReset(@Body() dto: RequestPasswordResetDto) {
+    return this.authService.requestPasswordReset(dto);
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Post('password-reset/confirm')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 
   @HttpCode(HttpStatus.OK)

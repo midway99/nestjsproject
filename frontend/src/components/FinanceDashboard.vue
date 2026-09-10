@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import type { User } from '../api/auth';
 import {
   financeApi,
+  type AnalysisReport,
   type Category,
   type Expense,
   type ExpenseInput,
@@ -17,14 +18,22 @@ const categoryName = ref('');
 const editingId = ref<string | null>(null);
 const loading = ref(false);
 const analyzing = ref(false);
+const reporting = ref(false);
 const error = ref('');
 const aiAnalysis = ref('');
+const analysisHistory = ref<AnalysisReport[]>([]);
+const showAnalysisModal = ref(false);
+const reportSuccess = ref('');
 const form = reactive({
   type: 'expense' as 'expense' | 'income',
   amount: '',
   description: '',
   spentAt: new Date().toISOString().slice(0, 10),
   categoryId: '',
+});
+const reportForm = reactive({
+  subject: '',
+  message: '',
 });
 
 const totalExpenses = computed(() =>
@@ -38,6 +47,9 @@ const totalIncome = computed(() =>
     .reduce((sum, item) => sum + Number(item.amount), 0),
 );
 const balance = computed(() => totalIncome.value - totalExpenses.value);
+const availableCategories = computed(() =>
+  categories.value.filter((category) => category.type === form.type),
+);
 
 const expensesByCategory = computed(() => {
   const totals = new Map<string, number>();
@@ -71,12 +83,13 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    [categories.value, expenses.value] = await Promise.all([
+    [categories.value, expenses.value, analysisHistory.value] = await Promise.all([
       financeApi.categories(),
       financeApi.expenses(),
+      financeApi.analysisHistory(),
     ]);
-    if (!form.categoryId && categories.value[0]) {
-      form.categoryId = categories.value[0].id;
+    if (!form.categoryId && availableCategories.value[0]) {
+      form.categoryId = availableCategories.value[0].id;
     }
   } catch (requestError) {
     showError(requestError);
@@ -88,9 +101,14 @@ async function load() {
 async function addCategory() {
   if (!categoryName.value.trim()) return;
   try {
-    const category = await financeApi.createCategory(categoryName.value);
+    const category = await financeApi.createCategory(
+      categoryName.value,
+      form.type,
+    );
     categories.value.push(category);
-    categories.value.sort((a, b) => a.name.localeCompare(b.name));
+    categories.value.sort(
+      (a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name),
+    );
     form.categoryId ||= category.id;
     categoryName.value = '';
   } catch (requestError) {
@@ -102,11 +120,31 @@ async function analyzeExpenses() {
   analyzing.value = true;
   error.value = '';
   try {
-    aiAnalysis.value = (await financeApi.analyze()).analysis;
+    const result = await financeApi.analyze();
+    aiAnalysis.value = result.analysis;
+    showAnalysisModal.value = true;
+    analysisHistory.value = await financeApi.analysisHistory();
   } catch (requestError) {
     showError(requestError);
   } finally {
     analyzing.value = false;
+  }
+}
+
+async function submitReport() {
+  if (!reportForm.subject.trim() || !reportForm.message.trim()) return;
+  reporting.value = true;
+  error.value = '';
+  reportSuccess.value = '';
+  try {
+    await financeApi.createReport(reportForm.subject, reportForm.message);
+    reportForm.subject = '';
+    reportForm.message = '';
+    reportSuccess.value = 'Репорт отправлен и сохранен для разбора.';
+  } catch (requestError) {
+    showError(requestError);
+  } finally {
+    reporting.value = false;
   }
 }
 
@@ -128,7 +166,7 @@ async function removeCategory(category: Category) {
       (item) => item.id !== category.id,
     );
     if (form.categoryId === category.id) {
-      form.categoryId = categories.value[0]?.id ?? '';
+      form.categoryId = availableCategories.value[0]?.id ?? '';
     }
   } catch (requestError) {
     showError(requestError);
@@ -183,11 +221,21 @@ function resetForm() {
   form.amount = '';
   form.description = '';
   form.spentAt = new Date().toISOString().slice(0, 10);
+  form.categoryId = availableCategories.value[0]?.id ?? '';
 }
 
 function showError(value: unknown) {
   error.value = value instanceof Error ? value.message : 'Неизвестная ошибка';
 }
+
+watch(
+  () => form.type,
+  () => {
+    if (!availableCategories.value.some((category) => category.id === form.categoryId)) {
+      form.categoryId = availableCategories.value[0]?.id ?? '';
+    }
+  },
+);
 
 onMounted(load);
 </script>
@@ -271,10 +319,9 @@ onMounted(load);
     <section class="ai-analysis">
       <div>
         <p class="eyebrow">Персональный анализ</p>
-        <h3>Что ИИ видит в ваших расходах?</h3>
+        <h3>Что ИИ видит в ваших финансах?</h3>
         <p class="muted">
-          В анализ отправляются только расходы, даты и категории — без имени и
-          email.
+          Доходы и расходы анализируются отдельно, категории не смешиваются.
         </p>
       </div>
       <button
@@ -285,7 +332,70 @@ onMounted(load);
       >
         {{ analyzing ? 'Анализируем…' : 'Анализировать с ИИ' }}
       </button>
-      <div v-if="aiAnalysis" class="analysis-result">{{ aiAnalysis }}</div>
+    </section>
+
+    <section class="finance-section report-section">
+      <div>
+        <p class="eyebrow">Обратная связь</p>
+        <h3>Репорт для разработчика</h3>
+      </div>
+      <form class="report-form" @submit.prevent="submitReport">
+        <input
+          v-model.trim="reportForm.subject"
+          maxlength="120"
+          placeholder="Коротко: что не так"
+          required
+        />
+        <textarea
+          v-model.trim="reportForm.message"
+          maxlength="3000"
+          placeholder="Опишите проблему, ожидание и что получилось"
+          required
+        ></textarea>
+        <button class="small-button" type="submit" :disabled="reporting">
+          {{ reporting ? 'Отправляем…' : 'Отправить' }}
+        </button>
+      </form>
+      <p v-if="reportSuccess" class="message success" role="status">
+        {{ reportSuccess }}
+      </p>
+    </section>
+
+    <section v-if="analysisHistory.length" class="finance-section history-section">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">История ИИ</p>
+          <h3>Сохраненные отчеты</h3>
+        </div>
+        <span class="chart-total">{{ analysisHistory.length }}</span>
+      </div>
+      <button
+        v-for="report in analysisHistory"
+        :key="report.id"
+        class="history-item"
+        type="button"
+        @click="
+          aiAnalysis = report.analysis;
+          showAnalysisModal = true;
+        "
+      >
+        <span>
+          {{ new Date(report.createdAt).toLocaleString('ru-RU') }}
+          <small v-if="report.periodStart && report.periodEnd">
+            {{ report.periodStart }} - {{ report.periodEnd }}
+          </small>
+        </span>
+        <em v-if="report.summary">{{ report.summary }}</em>
+        <ul v-if="report.recommendations?.length">
+          <li
+            v-for="recommendation in report.recommendations.slice(0, 2)"
+            :key="recommendation"
+          >
+            {{ recommendation }}
+          </li>
+        </ul>
+        <strong>{{ money.format(report.balance) }}</strong>
+      </button>
     </section>
 
     <div class="finance-grid">
@@ -314,7 +424,7 @@ onMounted(load);
             <select v-model="form.categoryId" required>
               <option disabled value="">Выберите категорию</option>
               <option
-                v-for="category in categories"
+                v-for="category in availableCategories"
                 :key="category.id"
                 :value="category.id"
               >
@@ -334,7 +444,7 @@ onMounted(load);
               placeholder="Например, продукты"
             />
           </label>
-          <button class="primary-button" :disabled="!categories.length">
+          <button class="primary-button" :disabled="!availableCategories.length">
             {{
               editingId
                 ? 'Сохранить'
@@ -360,7 +470,11 @@ onMounted(load);
           <input
             v-model.trim="categoryName"
             maxlength="50"
-            placeholder="Новая категория"
+            :placeholder="
+              form.type === 'income'
+                ? 'Новая категория дохода'
+                : 'Новая категория расхода'
+            "
             required
           />
           <button class="small-button">Добавить</button>
@@ -372,6 +486,7 @@ onMounted(load);
             class="category-item"
           >
             <span>{{ category.name }}</span>
+            <small>{{ category.type === 'income' ? 'Доход' : 'Расход' }}</small>
             <div>
               <button title="Переименовать" @click="renameCategory(category)">
                 ✎
@@ -417,5 +532,29 @@ onMounted(load);
         <button @click="removeExpense(expense)">×</button>
       </article>
     </section>
+
+    <div
+      v-if="showAnalysisModal"
+      class="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="analysis-title"
+      @click.self="showAnalysisModal = false"
+    >
+      <section class="modal-panel">
+        <header class="modal-header">
+          <h3 id="analysis-title">AI-анализ</h3>
+          <button
+            class="icon-button"
+            type="button"
+            aria-label="Закрыть"
+            @click="showAnalysisModal = false"
+          >
+            ×
+          </button>
+        </header>
+        <div class="analysis-result">{{ aiAnalysis }}</div>
+      </section>
+    </div>
   </div>
 </template>

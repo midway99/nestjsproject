@@ -6,13 +6,17 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity } from '../auth/user.entity.js';
+import { AnalysisReportEntity } from './analysis-report.entity.js';
 import { CategoryEntity } from './category.entity.js';
-import { DefaultCategory } from './default-category.enum.js';
+import { defaultCategories } from './default-category.enum.js';
+import type { CreateUserReportDto } from './dto/create-user-report.dto.js';
 import type { CreateCategoryDto } from './dto/create-category.dto.js';
 import type { CreateExpenseDto } from './dto/create-expense.dto.js';
 import type { UpdateCategoryDto } from './dto/update-category.dto.js';
 import type { UpdateExpenseDto } from './dto/update-expense.dto.js';
 import { ExpenseEntity } from './expense.entity.js';
+import { TransactionType } from './transaction-type.enum.js';
+import { UserReportEntity } from './user-report.entity.js';
 
 @Injectable()
 export class FinanceService {
@@ -23,6 +27,10 @@ export class FinanceService {
     private readonly categoriesRepository: Repository<CategoryEntity>,
     @InjectRepository(ExpenseEntity)
     private readonly expensesRepository: Repository<ExpenseEntity>,
+    @InjectRepository(AnalysisReportEntity)
+    private readonly analysisReportsRepository: Repository<AnalysisReportEntity>,
+    @InjectRepository(UserReportEntity)
+    private readonly userReportsRepository: Repository<UserReportEntity>,
   ) {}
 
   async getCategories(userId: string) {
@@ -39,13 +47,14 @@ export class FinanceService {
     const name = dto.name.trim();
     const duplicate = await this.categoriesRepository.findOneBy({
       userId,
+      type: dto.type,
       name,
     });
     if (duplicate) {
       throw new ConflictException('Такая категория уже существует');
     }
     return this.categoriesRepository.save(
-      this.categoriesRepository.create({ userId, name }),
+      this.categoriesRepository.create({ userId, name, type: dto.type }),
     );
   }
 
@@ -66,7 +75,7 @@ export class FinanceService {
       categoryId,
     });
     if (expensesCount > 0) {
-      throw new ConflictException('Сначала удалите расходы из этой категории');
+      throw new ConflictException('Сначала удалите операции из этой категории');
     }
     await this.categoriesRepository.remove(category);
     return { deleted: true };
@@ -85,9 +94,57 @@ export class FinanceService {
     return this.getExpenses(userId);
   }
 
+  async getAnalysisHistory(userId: string) {
+    await this.ensureUser(userId);
+    return this.analysisReportsRepository.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+      take: 20,
+    });
+  }
+
+  async saveAnalysisReport(
+    userId: string,
+    report: {
+      analysis: string;
+      expenseCount: number;
+      totalExpenses: number;
+      totalIncome: number;
+      balance: number;
+      summary: string;
+      recommendations: string[];
+      snapshot: Record<string, unknown>;
+      model: string;
+      periodStart: string | null;
+      periodEnd: string | null;
+    },
+  ) {
+    await this.ensureUser(userId);
+    return this.analysisReportsRepository.save(
+      this.analysisReportsRepository.create({ userId, ...report }),
+    );
+  }
+
+  async createUserReport(
+    userId: string,
+    dto: CreateUserReportDto,
+    aiTriage: string | null,
+  ) {
+    await this.ensureUser(userId);
+    return this.userReportsRepository.save(
+      this.userReportsRepository.create({
+        userId,
+        subject: dto.subject.trim(),
+        message: dto.message.trim(),
+        aiTriage,
+        status: 'new',
+      }),
+    );
+  }
+
   async createExpense(userId: string, dto: CreateExpenseDto) {
     await this.ensureUser(userId);
-    await this.getCategory(userId, dto.categoryId);
+    await this.getCategoryForType(userId, dto.categoryId, dto.type);
     const expense = this.expensesRepository.create({
       userId,
       type: dto.type,
@@ -108,10 +165,17 @@ export class FinanceService {
     dto: UpdateExpenseDto,
   ) {
     const expense = await this.getExpense(userId, expenseId);
-    if (dto.type !== undefined) expense.type = dto.type;
     if (dto.categoryId !== undefined) {
-      await this.getCategory(userId, dto.categoryId);
+      await this.getCategoryForType(
+        userId,
+        dto.categoryId,
+        dto.type ?? expense.type,
+      );
       expense.categoryId = dto.categoryId;
+    }
+    if (dto.type !== undefined) {
+      await this.getCategoryForType(userId, expense.categoryId, dto.type);
+      expense.type = dto.type;
     }
     if (dto.amount !== undefined) expense.amount = dto.amount;
     if (dto.description !== undefined) {
@@ -138,15 +202,24 @@ export class FinanceService {
   private async createDefaultCategoriesIfNeeded(userId: string) {
     const existingCategories = await this.categoriesRepository.find({
       where: { userId },
-      select: { name: true },
+      select: { name: true, type: true },
     });
     const existingNames = new Set(
-      existingCategories.map((category) => category.name),
+      existingCategories.map((category) => `${category.type}:${category.name}`),
     );
 
-    const missingCategories = Object.values(DefaultCategory)
-      .filter((name) => !existingNames.has(name))
-      .map((name) => this.categoriesRepository.create({ userId, name }));
+    const missingCategories = Object.entries(defaultCategories).flatMap(
+      ([type, names]) =>
+        names
+          .filter((name) => !existingNames.has(`${type}:${name}`))
+          .map((name) =>
+            this.categoriesRepository.create({
+              userId,
+              type: type as TransactionType,
+              name,
+            }),
+          ),
+    );
 
     if (missingCategories.length > 0) {
       await this.categoriesRepository.save(missingCategories);
@@ -156,6 +229,20 @@ export class FinanceService {
   private async getCategory(userId: string, id: string) {
     const category = await this.categoriesRepository.findOneBy({ id, userId });
     if (!category) throw new NotFoundException('Категория не найдена');
+    return category;
+  }
+
+  private async getCategoryForType(
+    userId: string,
+    id: string,
+    type: TransactionType,
+  ) {
+    const category = await this.getCategory(userId, id);
+    if (category.type !== type) {
+      throw new ConflictException(
+        'Категория не подходит для выбранного типа операции',
+      );
+    }
     return category;
   }
 

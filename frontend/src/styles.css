@@ -21,7 +21,8 @@ body {
   background: white;
 }
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 button {
@@ -240,13 +241,71 @@ button {
   margin: 0;
 }
 .analysis-result {
-  grid-column: 1 / -1;
   padding: 18px;
   border-radius: 12px;
   color: #34443b;
   background: white;
   line-height: 1.65;
   white-space: pre-wrap;
+}
+.report-section {
+  display: grid;
+  gap: 16px;
+}
+.report-form {
+  grid-template-columns: 1fr 1.5fr auto;
+  align-items: stretch;
+}
+.report-form .small-button {
+  min-height: 48px;
+}
+.history-section {
+  display: grid;
+  gap: 12px;
+}
+.history-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e5eae7;
+  border-radius: 10px;
+  color: #38453e;
+  background: white;
+  text-align: left;
+}
+.history-item span {
+  display: grid;
+  gap: 3px;
+  color: #7a8580;
+  font-size: 0.84rem;
+}
+.history-item span small {
+  color: #98a29d;
+  font-size: 0.76rem;
+}
+.history-item em,
+.history-item ul {
+  grid-column: 1 / -1;
+}
+.history-item em {
+  color: #38453e;
+  font-style: normal;
+  line-height: 1.45;
+}
+.history-item ul {
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 0;
+  padding-left: 18px;
+  color: #617068;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+.history-item strong {
+  color: #17202a;
+  white-space: nowrap;
 }
 .finance-grid {
   display: grid;
@@ -273,6 +332,17 @@ select {
   color: #17202a;
   background: white;
   font: inherit;
+}
+textarea {
+  width: 100%;
+  min-height: 48px;
+  resize: vertical;
+  padding: 14px 15px;
+  border: 1px solid #dce3df;
+  border-radius: 12px;
+  outline: none;
+  color: #17202a;
+  background: #fbfcfb;
 }
 .category-form {
   display: grid;
@@ -301,6 +371,10 @@ select {
 }
 .category-item > span {
   flex: 1;
+}
+.category-item > small {
+  color: #7a8580;
+  font-size: 0.76rem;
 }
 .category-item button,
 .expense-item button {
@@ -404,7 +478,8 @@ input {
   color: #17202a;
   background: #fbfcfb;
 }
-input:focus {
+input:focus,
+textarea:focus {
   border-color: #38a169;
   background: white;
   box-shadow: 0 0 0 4px rgb(56 161 105 / 12%);
@@ -424,6 +499,10 @@ input:focus {
   box-shadow: 0 9px 22px rgb(39 103 73 / 22%);
 }
 .primary-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.small-button:disabled {
   cursor: wait;
   opacity: 0.65;
 }
@@ -503,6 +582,46 @@ input:focus {
   font-size: 1.8rem;
   font-weight: 800;
 }
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  padding: 24px;
+  place-items: center;
+  background: rgb(23 32 42 / 48%);
+}
+.modal-panel {
+  display: grid;
+  gap: 16px;
+  width: min(720px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 22px;
+  border-radius: 16px;
+  background: #fbfcfb;
+  box-shadow: 0 24px 80px rgb(23 32 42 / 24%);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.modal-header h3 {
+  margin: 0;
+}
+.icon-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  color: #617068;
+  background: #edf1ef;
+  font-size: 1.3rem;
+}
 
 @media (max-width: 800px) {
   .summary-grid {
@@ -516,14 +635,12 @@ input:focus {
     border-radius: 20px;
   }
   .finance-grid,
-  .expense-form {
+  .expense-form,
+  .report-form {
     grid-template-columns: 1fr;
   }
   .ai-analysis {
     grid-template-columns: 1fr;
-  }
-  .analysis-result {
-    grid-column: auto;
   }
   .expense-item {
     flex-wrap: wrap;
